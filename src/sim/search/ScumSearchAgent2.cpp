@@ -9,6 +9,8 @@
 #include "sim/PrintHelpers.h"
 #include "sim/search/BattleScumSearcher2.h"
 
+#include <algorithm>
+
 using namespace sts;
 
 void search::ScumSearchAgent2::takeAction(GameContext &gc, search::GameAction a) {
@@ -408,4 +410,3 @@ void search::ScumSearchAgent2::stepEventPolicy(GameContext &gc) {
             return;
     }
 }
-
