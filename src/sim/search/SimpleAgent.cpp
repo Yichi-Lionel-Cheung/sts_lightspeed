@@ -15,7 +15,7 @@
 
 using namespace sts;
 
-static bool haveInitMaps = false;
+static std::once_flag mapsInitFlag;
 static int cardPriorityMap[372] {};
 static int cardPlayMap[372] {};
 static int bossRelicPriorityMap[200] {};
@@ -1092,63 +1092,60 @@ constexpr std::array<RelicId,24> bossRelicPriorities = {
 
 
 void initMaps() {
-    // there are synchronization issues with this if multiple threads start at once
-    if (haveInitMaps) {
-        return;
-    }
-    haveInitMaps = true;
-    for (int i = 0; i < cardPlayPriorities.size(); ++i) {
-        CardId c = cardPlayPriorities[i];
-        cardPlayMap[static_cast<int>(c)] = i + 1;
-    }
+    std::call_once(mapsInitFlag, [] {
+        for (int i = 0; i < cardPlayPriorities.size(); ++i) {
+            CardId c = cardPlayPriorities[i];
+            cardPlayMap[static_cast<int>(c)] = i + 1;
+        }
 
-    for (int i = 0; i < cardsPriorities.size(); ++i) {
-        CardId c = cardsPriorities[i];
-        cardPriorityMap[static_cast<int>(c)] = i + 1;
-    }
+        for (int i = 0; i < cardsPriorities.size(); ++i) {
+            CardId c = cardsPriorities[i];
+            cardPriorityMap[static_cast<int>(c)] = i + 1;
+        }
 
-    for (int i = 0; i < bossRelicPriorities.size(); ++i) {
-        RelicId r = bossRelicPriorities[i];
-        bossRelicPriorityMap[static_cast<int>(r)] = i + 1;
-    }
+        for (int i = 0; i < bossRelicPriorities.size(); ++i) {
+            RelicId r = bossRelicPriorities[i];
+            bossRelicPriorityMap[static_cast<int>(r)] = i + 1;
+        }
 
-    maxCopies = new std::map<CardId, int>({
-        {CardId::OFFERING, 1},
-        {CardId::IMPERVIOUS, 99},
-        {CardId::APOTHEOSIS, 1},
-        {CardId::GHOSTLY_ARMOR, 99},
-        {CardId::PERFECTED_STRIKE, 99},
-        {CardId::WHIRLWIND, 2},
-        {CardId::BATTLE_TRANCE, 2},
-        {CardId::DEMON_FORM, 1},
-        {CardId::IMMOLATE, 1},
-        {CardId::RAGE, 2},
-        {CardId::LIMIT_BREAK, 3},
-        {CardId::FLAME_BARRIER, 2},
-        {CardId::MASTER_OF_STRATEGY, 99},
-        {CardId::INFLAME, 1},
-        {CardId::DISARM, 2},
-        {CardId::SHRUG_IT_OFF, 3},
-        {CardId::DOUBLE_TAP, 1},
-        {CardId::THUNDERCLAP, 1},
-        {CardId::METALLICIZE, 1},
-        {CardId::POMMEL_STRIKE, 1},
-        {CardId::SHOCKWAVE, 1},
-        {CardId::UPPERCUT, 1},
-        {CardId::JAX, 1},
-        {CardId::PANIC_BUTTON, 1},
-        {CardId::FLASH_OF_STEEL, 99},
-        {CardId::FLEX, 1}
+        maxCopies = new std::map<CardId, int>({
+            {CardId::OFFERING, 1},
+            {CardId::IMPERVIOUS, 99},
+            {CardId::APOTHEOSIS, 1},
+            {CardId::GHOSTLY_ARMOR, 99},
+            {CardId::PERFECTED_STRIKE, 99},
+            {CardId::WHIRLWIND, 2},
+            {CardId::BATTLE_TRANCE, 2},
+            {CardId::DEMON_FORM, 1},
+            {CardId::IMMOLATE, 1},
+            {CardId::RAGE, 2},
+            {CardId::LIMIT_BREAK, 3},
+            {CardId::FLAME_BARRIER, 2},
+            {CardId::MASTER_OF_STRATEGY, 99},
+            {CardId::INFLAME, 1},
+            {CardId::DISARM, 2},
+            {CardId::SHRUG_IT_OFF, 3},
+            {CardId::DOUBLE_TAP, 1},
+            {CardId::THUNDERCLAP, 1},
+            {CardId::METALLICIZE, 1},
+            {CardId::POMMEL_STRIKE, 1},
+            {CardId::SHOCKWAVE, 1},
+            {CardId::UPPERCUT, 1},
+            {CardId::JAX, 1},
+            {CardId::PANIC_BUTTON, 1},
+            {CardId::FLASH_OF_STEEL, 99},
+            {CardId::FLEX, 1}
+        });
+
+        for (auto c : defensiveCards) {
+            isDefensiveCard.set(static_cast<int>(c));
+        }
+
+        isAoeCard.set(static_cast<int>(CardId::CLEAVE));
+        isAoeCard.set(static_cast<int>(CardId::IMMOLATE));
+        isAoeCard.set(static_cast<int>(CardId::THUNDERCLAP));
+        isAoeCard.set(static_cast<int>(CardId::WHIRLWIND));
     });
-
-    for (auto c : defensiveCards) {
-        isDefensiveCard.set(static_cast<int>(c));
-    }
-
-    isAoeCard.set(static_cast<int>(CardId::CLEAVE));
-    isAoeCard.set(static_cast<int>(CardId::IMMOLATE));
-    isAoeCard.set(static_cast<int>(CardId::THUNDERCLAP));
-    isAoeCard.set(static_cast<int>(CardId::WHIRLWIND));
 }
 
 struct SimpleAgentInfo {
@@ -1157,6 +1154,7 @@ struct SimpleAgentInfo {
     std::uint64_t seedEnd;
 
     std::mutex m;
+    std::mutex outputMutex;
     std::uint64_t curSeed;
     std::int64_t winCount = 0;
     std::int64_t lossCount = 0;
@@ -1182,7 +1180,12 @@ void agentMtRunner(SimpleAgentInfo *info) {
 
         search::SimpleAgent agent;
         agent.print = info->shouldPrint;
-        agent.playout(gc);
+        if (info->shouldPrint) {
+            std::scoped_lock outputLock(info->outputMutex);
+            agent.playout(gc);
+        } else {
+            agent.playout(gc);
+        }
 
 
 //        printOutcome(std::cout, gc);

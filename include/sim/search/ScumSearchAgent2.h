@@ -17,7 +17,7 @@ namespace sts::search {
     class BattleScumSearcher2;
 
     struct ScumSearchAgent2 {
-        std::int64_t simulationCountTotal;
+        std::int64_t simulationCountTotal = 0;
         std::vector<int> gameActionHistory;
 
         int stepCount = 0;

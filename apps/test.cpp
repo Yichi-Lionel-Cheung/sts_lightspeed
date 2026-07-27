@@ -119,6 +119,7 @@ void replayActionFile(const GameContext &startState, const std::string &fname) {
 
 struct AgentMtInfo {
     std::mutex m;
+    std::mutex outputMutex;
 
     std::uint64_t curSeed;
     std::uint64_t seedStart;
@@ -154,9 +155,17 @@ void agentMtRunner(AgentMtInfo *info) {
         agent.printActions = g_print_level & 0x1;
         agent.printLogs = g_print_level & 0x2;
 
-        agent.playout(gc);
+        if (g_print_level != 0) {
+            std::scoped_lock outputLock(info->outputMutex);
+            agent.playout(gc);
+        } else {
+            agent.playout(gc);
+        }
 
-        printOutcome(std::cout, gc);
+        {
+            std::scoped_lock outputLock(info->outputMutex);
+            printOutcome(std::cout, gc);
+        }
 
         {
             std::scoped_lock lock(info->m);
